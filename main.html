@@ -1,0 +1,185 @@
+<html>
+<head>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<script src='angular.min.js'></script>
+<script src='audios.js'></script>
+<script>
+angular.module('DemoApp', [])
+   .controller('DemoController', function($scope) {
+   vm = this;
+	vm.audios = audios; 
+	vm.tempSearchText = "";
+	vm.searchText = "";
+	vm.threshold_high_acoustic = 0.90;
+	vm.threshold_high_cwer = 0.70;
+	vm.threshold_low_acoustic = 0.45;
+	vm.consider_brasil = false;
+	vm.search_result_count = 0;
+
+	vm.level = 'low';
+	vm.gender = 'any';
+	vm.settings_visible = false;
+
+	vm.get_candidate_level = function(candidate){
+
+			let result = '';
+			
+			high_condition = (candidate.prediction_score >= vm.threshold_high_acoustic && candidate.prediction_cwer >= vm.threshold_high_cwer);
+			low_condition = (candidate.prediction_score <= vm.threshold_low_acoustic);
+
+			if (high_condition)
+				result = 'good';
+			else if (low_condition)
+				result ='low';
+			else
+				result = 'intermediate';
+
+			return result;
+	}
+
+	vm.match_expected_level = function(candidate){
+		return candidate.expected_level == vm.get_candidate_level(candidate);
+	}
+
+	vm.get_candidates_by_level = function(){
+		let result = [];
+		for (let i = 0; i < vm.audios.length; i++) {
+			candidate = vm.audios[i];
+			condition_brasil = (vm.consider_brasil || !candidate.is_brasil);
+			condition_gender = (vm.gender=='any' || candidate.gender==vm.gender);
+			condition_level = (vm.level =='any' || vm.level == vm.get_candidate_level(candidate));
+			if (condition_brasil &&  condition_gender && condition_level)
+				result.push(candidate);
+		}
+		return result;
+	}
+
+	vm.search = function()
+	{
+	  vm.candidates = vm.get_candidates_by_level();
+	  vm.searchText = vm.tempSearchText;
+	  search_count = 0;
+	  for (let i = 0; i < vm.candidates.length; i++)
+	  		if (vm.searchText == '' || vm.candidates[i].name.includes(vm.searchText))
+	  			search_count = search_count + 1;
+	  	vm.search_result_count = search_count
+	}
+
+	vm.keypress = function(keyEvent)
+	{
+	  if (keyEvent.which === 13)
+		  vm.search();
+	}
+
+	vm.expand_or_colapse_settings = function(){
+		vm.settings_visible = !vm.settings_visible;
+	}
+
+	vm.candidates = vm.get_candidates_by_level();
+	vm.search_result_count = vm.candidates.length;
+	vm.search();
+	
+});
+</script>
+
+<style>
+
+.error_row{
+	border: 3px solid red;
+}
+
+</style>
+
+</head>
+<body>
+	<div class="container" ng-app='DemoApp'>	
+		<div ng-controller='DemoController as ctrl'>
+			
+			<!-- Candidates filter -->
+			<div>
+				<!-- search row -->
+				<div class="row" style="padding-bottom: 25px;">				
+				    <div class="input-group">				      
+				      <input type="text" class="form-control" ng-model="ctrl.tempSearchText" placeholder="Search" ng-keypress="ctrl.keypress($event)">
+				      <span class="input-group-btn">
+							<button class="btn btn-secondary" type="button" ng-click="ctrl.search()">Go!</button>
+				      </span>
+				    </div>
+
+			      <select type="select" class="form-control" ng-model="ctrl.level" ng-change="ctrl.search()">
+			      	<option value="any">Any Level</option>
+			      	<option value="good">Good Level</option>
+			      	<option value="intermediate">Intermediate Level</option>
+			      	<option value="low">Low Level</option>
+					</select>				    
+
+			      <select type="select" class="form-control" ng-model="ctrl.gender" ng-change="ctrl.search()">
+			      	<option value="any">Any Gender</option>
+			      	<option value="mas">Male Gender</option>
+			      	<option value="fem">Female Gender</option>
+					</select>				    					
+				</div>
+
+				<!-- More settings -->
+				<a href='#' ng-click='ctrl.expand_or_colapse_settings()'>See more settings</a>
+				<div class="row" style="padding-bottom: 25px;   border: 2px solid #D3D3D3; border-radius: 20px; padding: 20px;" ng-show="ctrl.settings_visible">				
+				      
+				      <div><input type="text" class="form-control" ng-model="ctrl.threshold_high_acoustic" ng-keypress="ctrl.keypress($event)" style='width: 75px;position: relative; float: right;'><span style='position: relative; float: right;'>Acoustic threshold for automatic approval: </span></div>
+
+				      <br/><br/><br/>
+
+				      <div><input type="text" class="form-control" ng-model="ctrl.threshold_high_cwer" ng-keypress="ctrl.keypress($event)" style='width: 75px;position: relative; float: right;'><span style='position: relative; float: right;'>Transcription threshold for automatic approval: </span></div>
+				      				      
+				      <br/><br/><br/>
+
+				      <div><input type="text" class="form-control" ng-model="ctrl.threshold_low_acoustic" ng-keypress="ctrl.keypress($event)" style='width: 75px;position: relative; float: right;'><span style='position: relative; float: right;'>Acoustic threshold for automatic fail: </span></div>
+
+				      <br/><br/><br/>
+
+				      <div><input type="checkbox" ng-model="ctrl.consider_brasil" ng-change="ctrl.search()" style='position: relative; float: right;'><span style='position: relative; float: right;'>Consider candidates from Brasil: &nbsp;&nbsp;</span></div>
+
+				</div>
+
+			<div>
+
+			<br/><br/>
+
+			<h2>Candidates with {{ctrl.level}} level (total: {{ctrl.search_result_count}})</h2>
+
+			<br/><br/>
+
+			<!-- Players Table style="border: 2px solid red;" --> 
+			<div style="height: 500px; margin-bottom: 30px;">
+				  <table class="table table-striped">
+				    <thead>
+				      <tr>
+					<th></th>
+					<th>Name</th>
+					<th>Gender</th>
+					<th>From Brasil?</th>
+					<th>Expected Level</th>
+					<th>Predicted Level</th>
+					<th>Acoustic Score</th>
+					<th>Transcription Score</th>
+				      </tr>
+				    </thead>
+				    <tbody>
+				      <tr ng-repeat="p in ctrl.candidates | filter:{ name: ctrl.searchText} | orderBy:'-prediction_score'" ng-class="{error_row: ctrl.get_candidate_level(p) != p.expected_level}">
+							<td><img src='candidate.png' width="35" /></td>
+							<td>{{p.name}}</td>
+							<td>{{p.gender}}</td>
+							<td>{{p.is_brasil}}</td>					      
+							<td>{{p.expected_level}}</td>
+							<td title="{{}}">{{ctrl.get_candidate_level(p)}}</td>
+							<td>{{p.prediction_score | number:2}}</td>
+							<td>{{p.prediction_cwer |number:2}}</td>
+				      </tr>
+				    </tbody>
+				  </table>
+			</div>
+
+
+		</div>
+	</div>
+</body>
+</html>
